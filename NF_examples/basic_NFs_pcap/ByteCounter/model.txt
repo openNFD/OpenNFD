@@ -1,0 +1,8 @@
+program Byte_Counter{
+  int counter (sip&dip) = 0;
+  entry{
+    action_state{
+      counter = counter + f[iplen];
+    }
+  }
+}

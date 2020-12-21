@@ -1,0 +1,13 @@
+} /* End of if (FD_ISSET(i, &working_set)) */
+} /* End of loop through selectable descriptors */
+
+} while (end_server == FALSE);
+    /*************************************************************/
+    /* Clean up all of the sockets that are open                  */
+    /*************************************************************/
+    for (i=0; i <= max_sd; ++i)
+    {
+      if (FD_ISSET(i, &master_set))
+        close(i);
+    }
+}

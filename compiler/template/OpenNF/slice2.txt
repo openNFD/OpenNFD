@@ -1,0 +1,439 @@
+void pcap_handle(u_char* user,const struct pcap_pkthdr* header,const u_char* pkt_data)
+{
+			// SDMBN pre-process packet
+			ProcessContext context;
+			sdmbn_preprocess_packet(header, packet, &context);
+			if (context.stop)
+			{ return; }
+			/////////////////////////////////////
+
+	struct timeval recv_time;
+	gettimeofday(&recv_time, NULL);
+
+//		printf("Dest Mac : %2x.%2x.%2x.%2x.%2x.%2x\n",pkt_data[0],pkt_data[1],pkt_data[2],pkt_data[3],pkt_data[4],pkt_data[5]);
+//		printf("Src  Mac : %2x.%2x.%2x.%2x.%2x.%2x\n",pkt_data[6],pkt_data[7],pkt_data[8],pkt_data[9],pkt_data[10],pkt_data[11]);
+//		printf("Src  IP : %3d.%3d.%3d.%3d\n",pkt_data[26],pkt_data[27],pkt_data[28],pkt_data[29]);
+//		printf("Dest IP : %3d.%3d.%3d.%3d\n",pkt_data[30],pkt_data[31],pkt_data[32],pkt_data[33]);
+//		printf("caplen = %ld , len = %ld\n", header->caplen,header->len);
+
+
+	memcpy(packet,pkt_data,header->caplen);
+
+			//notify the packet
+			sdmbn_notify_packet_received("HTTP", &recv_time);
+
+	//NF dealing!!!!!!!
+	FUNCTION(packet);
+
+	// forwarding
+	//pcap_sendpacket(phandle,packet,header->len);
+	config.fw_sta.packetCount++;
+	//printf("%d\n",config.fw_sta.packetCount);
+
+			// SDMBN post-process packet
+			sdmbn_postprocess_packet(header, packet, &context);
+			/////////////////////////////////////////////////////
+
+	return;
+}
+
+int main(int argc, char *argv[])
+{
+			//////added//////////
+				int ch = 0;
+				while((ch = getopt(argc, argv, ARGS)) != -1){
+					switch(ch){
+					case 'i':
+						config.dev = optarg;    //get the device name
+						break;
+					default:
+						printf("wrong argument!\n");
+						return 0;
+					}
+				}
+			////////////////////
+
+	(new F_Type())->init();
+        char errbuf[1024];
+	phandle = pcap_open_live(config.dev,1000,1,100,errbuf);
+	if(phandle!=NULL){
+		cout<<"Open Now!!"<<endl;
+	}
+	//packet  = (u_char *)malloc(MAX_PACKET_LEN * sizeof(u_char));
+	packet  = new u_char[MAX_PACKET_LEN];
+	signal(SIGINT,stop);
+	begin_t   = clock();
+
+			// Initialize SDMBN
+				SDMBNLocals locals;
+				bzero(&locals, sizeof(locals));
+				locals.put_allflows = &local_put_allflows;
+				locals.get_allflows = &local_get_allflows;
+				locals.get_perflow = &local_get_perflow;
+				locals.put_perflow = &local_put_perflow;
+				locals.get_multiflow = &local_get_multiflow;
+				locals.put_multiflow = &local_put_multiflow;
+				locals.delete_perflow = &local_del_perflow;
+				locals.process_packet = &local_process_packet;
+				locals.device = config.dev;
+				sdmbn_init(&locals);
+            //initiate the serializing
+		    setup_serialize_translators();
+
+			//initiate the all_flow state;
+			config.fw_sta.packetCount = 0;
+
+
+			//initiate the lock///
+			 pthread_mutex_init(&counterLock, NULL);
+
+	pcap_loop(phandle,-1,pcap_handle,NULL);
+
+
+
+			// Clean-up SDMBN
+			sdmbn_cleanup();
+
+	//free(packet);
+	return 0;
+}
+
+
+///// SDMBN Local Allflows State Handlers //////////////////////////////////////
+int local_get_allflows(int id)
+{
+	//add the lock!!!!!!!!!!!!!!!!!!!!
+	char *state = sdmbn_base64_encode(&config.fw_sta, sizeof(config.fw_sta));
+	if (NULL == state)
+	    { return -1; }
+
+	// Flush the counters
+	memset(&config.fw_sta, 0, sizeof(config.fw_sta));
+
+	// FIXME: Unlock allflows state
+
+	// Send allflows state
+	int result = sdmbn_send_allflows(id, state, 0);
+
+	// Clean-up
+	free(state);
+	return result;
+}
+
+int local_put_allflows(int hashkey, char *state)
+{
+    // Decode allflows state
+    fw_state *received = (fw_state*) sdmbn_base64_decode(state);
+    if (NULL == received)
+    { return -1; }
+
+    // FIXME: Lock allflows state
+
+    memcpy(&config.fw_sta, received, sizeof(config.fw_sta));
+
+    // FIXME: Unlock allflows state
+
+    // Clean-up
+    free(received);
+
+    return 1;
+}
+
+int local_get_perflow(PerflowKey* key, int id, int raiseEvents,SDMBNExt *t){
+	if (NULL == key)
+	    { return -1; }
+
+	int maxChunks = -1;
+	while (t != NULL)
+	{
+		switch(t->id)
+		{
+		case SDMBN_EXT_MAX_CHUNKS:
+			maxChunks = *((int*)(t->data));
+			break;
+		}
+		t = t->next;
+	}
+	int count = 0;
+	mul_s * tem;
+	t_s * tmp;
+	char * state;
+	int hashkey,result;
+
+
+	if (key->wildcards & WILDCARD_NW_SRC){
+
+	    printf("SRC_IP is wildcarded, getting all per_flow states\n");
+
+		unordered_map<Tuple, int> allState = OPENNF_STATE.getAllState();
+		unordered_map<Tuple, int>::iterator it =  allState.begin();
+
+	    //traverse all mul_state
+		while(it!=allState.end()){
+			tem = (mul_s*)calloc(1,sizeof(mul_s));
+			tmp = (t_s*)malloc(sizeof(t_s));
+			tmp->src_ip= (*it).first.ips[0].ip;
+			tmp->src_ip_mask= (*it).first.ips[0].mask;
+			tmp->dst_ip = (*it).first.ips[1].ip;
+			tmp->dst_ip_mask = (*it).first.ips[1].mask;
+			tem->tp = tmp;
+			tem->count = (*it).second;
+			tem->next = NULL;
+
+			state = ser_ialize(head_tra,"mul_s",tem,NULL,0);
+
+//				if(state!=NULL)
+//					printf("%s \n",state);
+
+			PerflowKey astkey;
+			astkey.wildcards = WILDCARD_NONE;
+			astkey.dl_type = 0x0800;
+			astkey.nw_src = (*it).first.ips[0].ip;
+			astkey.nw_src_mask = (*it).first.ips[0].mask;
+			astkey.nw_dst = (*it).first.ips[1].ip;
+			astkey.nw_dst_mask = (*it).first.ips[1].mask;
+			astkey.wildcards &= ~(WILDCARD_NW_SRC | WILDCARD_DL_TYPE);
+
+			hashkey = (*it).first.ips[0].ip;
+
+			result = sdmbn_send_perflow(id, &astkey, state, hashkey, count);
+
+			if(result!=0){
+				printf("send!\n");
+			}
+			count++;
+			it++;
+			free(tmp);
+			free(tem);
+		}
+	}
+	return count;
+}
+
+int local_put_perflow(int id, PerflowKey * key, char *state){
+	 if (NULL == key || NULL == state)
+	    { return -1; }
+
+	 printf("put_per_flow!\n");
+	 mul_s* tem = (mul_s*)ser_parse(head_tra,"mul_s",state,NULL);
+
+	 	////////////////////
+	 	if(tem==NULL){
+	 		printf("The state is NULL!\n");
+	 		return -1;
+	 	}
+
+	 		/////////build or put the states (lock as well)
+	 		////TODO
+	 		IP *src = new IP(tem->tp->src_ip,tem->tp->src_ip_mask);
+	 		IP *dst = new IP(tem->tp->dst_ip,tem->tp->dst_ip_mask);
+	  		Tuple tp = create_tuple_ip(src,dst);
+
+	 		///add the lock
+	 		pthread_mutex_lock(&counterLock);
+
+	 		OPENNF_STATE.addMultiState(tp,tem->count);
+	 		printf("%d  %d  : %d\n",tp.ips[0].ip,tp.ips[1].ip,tem->count);
+
+	 		/////////////////////////(unlock as well)
+	 		pthread_mutex_unlock(&counterLock);
+	return 1;
+}
+
+int local_del_perflow(PerflowKey *key,int id){
+	printf("delete the perflow state!\n");
+
+	if (NULL == key)
+	    { return -1; }
+	int count = OPENNF_STATE.getAllState().size();
+
+	pthread_mutex_lock(&counterLock);
+
+		OPENNF_STATE.clean();
+
+	pthread_mutex_unlock(&counterLock);
+
+	return count;
+}
+
+int local_get_multiflow(PerflowKey *key, int id){
+	if(key == NULL){
+		return -1;
+	}
+
+	int count =0;
+	mul_s *tem;         //record the multi_state
+	int result;         //send result
+	int hashkey;
+	char* state;
+	IP *src;
+	Tuple tp ;
+	t_s* tmp;
+
+	//if the srcIP field is wildcards, send all mul_states
+	if (key->wildcards & WILDCARD_NW_SRC)
+    {
+		    printf("SRC_IP is wildcarded, getting all multiflow states\n");
+
+			unordered_map<Tuple, int> allState = OPENNF_STATE.getAllState();
+			unordered_map<Tuple, int>::iterator it =  allState.begin();
+
+		    //traverse all mul_state
+			while(it!=allState.end()){
+				tem = (mul_s*)calloc(1,sizeof(mul_s));
+				tmp = (t_s*)malloc(sizeof(t_s));
+				tmp->src_ip= (*it).first.ips[0].ip;
+				tmp->src_ip_mask= (*it).first.ips[0].mask;
+				tmp->dst_ip = (*it).first.ips[1].ip;
+				tmp->dst_ip_mask = (*it).first.ips[1].mask;
+				tem->tp = tmp;
+				tem->count = (*it).second;
+				tem->next = NULL;
+
+				state = ser_ialize(head_tra,"mul_s",tem,NULL,0);
+
+//				if(state!=NULL)
+//					printf("%s \n",state);
+
+				PerflowKey astkey;
+				astkey.wildcards = WILDCARD_ALL;
+				astkey.dl_type = 0x0800;
+				astkey.nw_src = (*it).first.ips[0].ip;
+				astkey.nw_src_mask = (*it).first.ips[0].mask;
+				astkey.nw_dst = (*it).first.ips[1].ip;
+				astkey.nw_dst_mask = (*it).first.ips[1].mask;
+				astkey.wildcards &= ~(WILDCARD_NW_SRC | WILDCARD_DL_TYPE);
+
+				hashkey = (*it).first.ips[0].ip;
+
+				result = sdmbn_send_multiflow(id, &astkey, state, hashkey, count);
+
+				if(result!=0){
+					printf("send!\n");
+				}
+				count++;
+				it++;
+				free(tmp);
+				free(tem);
+			}
+			return count;
+    }
+	else{
+		//to build the tuple
+			src = new IP(key->nw_src,key->nw_src_mask);
+			IP *dst;
+			if(key->wildcards & WILDCARD_NW_DST)
+				dst = new IP(key->nw_dst,key->nw_dst_mask);
+			else{
+				dst = NULL;
+			}
+			tp = (create_tuple_ip(src,dst));
+
+			///add the lock!!
+			pthread_mutex_lock(&counterLock);
+
+			tem = (mul_s*)calloc(1,sizeof(mul_s));
+			tmp = (t_s*)malloc(sizeof(t_s));
+
+			///build the mul_state
+			tem->tp = tmp;
+			tem->count = OPENNF_STATE.getMultistate(tp);
+			tem->next = NULL;
+
+			///serialize the structure
+		    //TODO
+			state = ser_ialize(head_tra, "multi_tate",(void*)tem, NULL, 0);
+
+			if(state!=NULL)
+				printf("serialize successfully\n");
+
+			//build the perflowKey
+			PerflowKey astkey;
+			astkey.wildcards = WILDCARD_ALL;
+			astkey.dl_type = 0x0800;
+			astkey.nw_src = key->nw_src;
+			astkey.nw_src_mask = key->nw_src_mask;
+			astkey.nw_dst = key->nw_dst;
+			astkey.nw_dst_mask = key->nw_dst_mask;
+			astkey.wildcards &= ~(WILDCARD_NW_SRC | WILDCARD_DL_TYPE);
+
+			hashkey = astkey.nw_src;
+
+			//////send the state//////
+			//TODO
+			result = sdmbn_send_multiflow(id, &astkey, state, hashkey, count);
+
+//			if(result!=0){
+//				printf("%s send!\n",state);
+//			}
+
+			count++;
+			///release the space
+			free(tmp);
+			free(tem);
+
+			///release the lock!
+		    //TODO
+			pthread_mutex_unlock(&counterLock);
+
+			return count;
+	}
+}
+
+int local_put_multiflow(int hashkey, PerflowKey *key, char *state){
+	if (NULL == key || NULL == state)
+    {
+		return -1;
+    }
+	//SERIALIZE_PRINT("deserializing multi flow state\n%s", state);
+
+	////deserialize/////
+	//TODO
+	mul_s* tem = (mul_s*)ser_parse(head_tra,"mul_s",state,NULL);
+
+	////////////////////
+	if(tem==NULL){
+		printf("The state is NULL!\n");
+		return -1;
+	}
+
+		/////////build or put the states (lock as well)
+		////TODO
+		IP *src = new IP(tem->tp->src_ip,tem->tp->src_ip_mask);
+		IP *dst = new IP(tem->tp->dst_ip,tem->tp->dst_ip_mask);
+ 		Tuple tp = create_tuple_ip(src,dst);
+
+		///add the lock
+		pthread_mutex_lock(&counterLock);
+
+		OPENNF_STATE.addMultiState(tp,tem->count);
+		printf("%d  %d  : %d\n",tp.ips[0].ip,tp.ips[1].ip,tem->count);
+
+		/////////////////////////(unlock as well)
+		pthread_mutex_unlock(&counterLock);
+
+	return 1;
+}
+
+//// SDMBN local packet processing function //////////////////////////////////
+int local_process_packet(const struct pcap_pkthdr *hdr, const unsigned char *pkt)
+{
+	pcap_handle(NULL, hdr, pkt);
+	return 0;
+}
+
+ser_tra_t * setup_serialize_translators()
+{
+		//translator for mul_state
+		ser_tra_t *tra_tp;
+		head_tra = ser_new_tra("mul_s",sizeof(mul_s),NULL);
+		ser_new_field(head_tra,"t_s",1,"tp",offsetof(mul_s,tp));
+		ser_new_field(head_tra,"int",0,"count",offsetof(mul_s,count));
+		ser_new_field(head_tra,"mul_s",1,"next",offsetof(mul_s,next));
+
+		tra_tp = ser_new_tra("t_s",sizeof(t_s),head_tra);
+		ser_new_field(tra_tp,"uint32_t",0,"src_ip",offsetof(t_s,src_ip));
+		ser_new_field(tra_tp,"uint32_t",0,"src_ip_mask",offsetof(t_s,src_ip_mask));
+		ser_new_field(tra_tp,"uint32_t",0,"dst_ip",offsetof(t_s,dst_ip));
+		ser_new_field(tra_tp,"uint32_t",0,"dst_ip_mask",offsetof(t_s,dst_ip_mask));
+}

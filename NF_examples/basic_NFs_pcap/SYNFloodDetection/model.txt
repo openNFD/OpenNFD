@@ -1,0 +1,33 @@
+program SYNFD{
+
+
+map<IP,int> blist;
+int threshold=100;
+
+
+entry{
+    match_flow{f[flag_syn] ==1 && f[tag]!=1}
+    action_state{blist[f[sip]]=blist[f[sip]]+1; f[tag]=1; resubmit;}
+
+}
+entry{
+    match_flow{f[tag]==1}
+    match_state{blist[f[sip]]== threshold}
+    action_flow{f[dip]=DROP;}
+}
+entry{
+    match_flow{f[tag]==1}
+    match_state{blist[f[sip]]!= threshold}
+    action_flow{pass;}
+    action_state{pass;}
+}
+entry{
+    match_flow{f[tag]!=1 && f[flag_syn] !=1 && f[flag_ack] ==1}
+    action_state{blist[f[sip]]=blist[f[sip]]-1;}
+}
+entry{
+    match_flow{ f[tag]!=1 && f[flag_syn] !=1 && f[flag_ack] !=1}
+    action_flow{pass;}
+    action_state{pass;}
+}
+}

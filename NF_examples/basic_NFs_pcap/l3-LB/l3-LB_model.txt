@@ -1,0 +1,10 @@
+program L3_LB{
+	map <int, IP> list={0:10.0.1.10/32,1:10.0.1.20/32,2:10.0.1.30/32,3:10.0.1.40/32,4:10.0.1.50/32};
+	int round = 0;
+	int round_max = 5;	
+	
+	entry{
+		action_flow { f[dip] = list[round];}
+		action_state { round = (round +1)% round_max; }
+	}
+}

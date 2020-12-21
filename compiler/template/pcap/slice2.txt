@@ -1,0 +1,35 @@
+
+/* INSERTION ENDS HERE */
+
+void pcap_handle(u_char* user,const struct pcap_pkthdr* header,const u_char* pkt_data)
+{
+    memcpy(packet,pkt_data,header->caplen);
+    /* !!!!!!!!!!!!!!!!!!!!!!!!!!*/
+    if (  FUNCTION(packet,header->caplen)!=-1)
+    {
+        pcap_sendpacket(phandle_eth2,packet,header->len);
+        _allTput += header->caplen;
+        _counter++;
+    }
+    _sum++;
+}
+
+int main()
+{
+    _init_();
+    char errbuf[1024];
+    phandle = pcap_open_live("enp180s0f0",1514,1,0,errbuf);
+    //TODO
+    phandle_eth2 = pcap_open_live("enp180s0f1",1514,1,0,errbuf);
+    if (phandle==NULL){
+        cout<<"!!!CAN NOT CAPTURE INTERFACE"<<endl;
+        exit(0);
+    }
+    packet  = new u_char[MAX_PACKET_LEN];
+    signal(SIGINT,stop);
+
+    gettimeofday(&begin_time,NULL);
+    //process(f_sig1); //FOR Timer Only
+    pcap_loop(phandle,-1,pcap_handle,NULL);
+    return 0;
+}

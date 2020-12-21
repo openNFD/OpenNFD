@@ -1,0 +1,25 @@
+program UDPFM{
+map<IP,int> udpcounter;
+map<IP,int> udpflood;
+int threshold=100;
+
+entry{
+match_flow{f[UDP]==1}
+match_state{udpflood[f[sip]]!=1 && udpcounter[f[sip]]!=threshold}
+action_state{udpcounter[f[sip]]=udpcounter[f[sip]]+1;}
+}
+
+entry{
+match_flow{f[UDP]==1}
+match_state{udpflood[f[sip]]!=1 && udpcounter[f[sip]]==threshold}
+action_flow{f[dip]=DROP;}
+action_state{udpflood[f[sip]]=1;}
+}
+
+entry{
+match_flow{f[UDP]!=1}
+action_flow{pass;}
+action_state{pass;}
+}
+
+}

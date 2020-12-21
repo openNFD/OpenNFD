@@ -1,0 +1,30 @@
+program NAT{
+    rule R=sip:192.168.0.0/16;
+    IP base=219.168.135.100/32;
+    int port=12000;
+    map<IP,map<int, int>> mapping;
+    map<int, IP> port_ip;
+    map<int, int> port_port;
+
+    entry{
+        match_flow{ f matches R }
+	match_state{ ~(f[sip] in mapping) && (f[sip] in mapping && ~(f[sport] in mapping[f[sip]])) }
+        action_state  { mapping[f[sip]][f[sport]] = f[port]; port_ip[port]= f[sip]; port_port[port]=f[port]; }
+        action_flow{ f[sip]=base; f[sport]=port; port=port+1; }
+
+    }
+    entry{
+	match_flow{ f matches R }
+	match_state { f[sip] in mapping && ~(f[sport] in mapping[f[sip]]) }
+	action_flow { f[sip]=base; f[sport]=mapping[f[sip]][f[sport]]; }
+    }
+    entry{
+        match_flow{f mismatches R && f[dip] == base}
+        match_state{ f[dport] in port_port }
+        action_flow{ f[dip]= port_ip[f[dport]]; f[dport]=port_port[f[dport]];}
+    }
+    entry{
+        match_flow{f mismatches R && f[dip] != base}
+        action_flow{ f[dip]=DROP; }
+    }
+}

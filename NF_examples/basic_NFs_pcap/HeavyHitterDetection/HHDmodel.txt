@@ -1,0 +1,30 @@
+program HHD{
+
+
+map<IP, int> hh;
+map<IP,int> hh_counter;
+int threshold=100;
+
+entry{
+match_flow{f[flag_syn]==1 }
+match_state{hh[f[sip]]!=1 && hh_counter[f[sip]]!=threshold}
+action_state{hh_counter[f[sip]]=hh_counter[f[sip]]+1;}
+}
+entry{
+match_flow{f[flag_syn]==1}
+match_state{hh[f[sip]]!=1 && hh_counter[f[sip]]==threshold}
+action_state{hh[f[sip]]=1;}
+}
+entry{
+match_flow{f[flag_syn]==1}
+match_state{hh[f[sip]]==1}
+action_flow{pass;}
+action_state{pass;}
+}
+entry{
+match_flow{f[flag_syn]!=1}
+action_flow{pass;}
+action_state{pass;}
+}
+
+}

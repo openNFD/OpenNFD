@@ -1,0 +1,26 @@
+program DNSAM{
+map<IP,map<IP,int>>  bq;
+
+entry{
+match_flow{f[dport]==53}
+action_state{bq[f[sip]][f[dip]]=1;}
+}
+entry{
+match_flow{f[dport]!=53 && f[sport]==53 }
+match_state{bq[f[sip]][f[dip]]!=1}
+action_flow{f[dip]=DROP;}
+}
+entry{
+match_flow{f[dport]!=53 && f[sport]!=53 }
+action_flow{pass;}
+action_state{pass;}
+}
+
+entry{
+match_flow{f[dport]!=53 }
+match_state{ bq[f[sip]][f[dip]]==1}
+action_flow{pass;}
+action_state{pass;}
+}
+
+}

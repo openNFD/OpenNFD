@@ -1,0 +1,21 @@
+program load_balancer{
+int round=0;
+int max_round=2;
+map<int, IP> pool= {0: "192.168.1.1/32", 1: "192.168.1.2/32"};
+map<int, port> poolport = {0:11111, 1:11111};
+map<int, int> connections;
+
+entry{
+	match_flow{ connection f}
+	action state{
+		int s1 = accept();
+		round = (round+1) % max_round;
+		int s2 = connect(pool[round]);
+		connections[s1]=s2;
+		connections[s2]=s1;
+	}
+entry{
+	match_flow { !(connection f) }
+	action flow{ send_to(connections); }
+}
+}

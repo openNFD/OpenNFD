@@ -1,0 +1,10 @@
+program IDS{
+rule ALLOW = sip:192.168.22.0/24;
+entry {
+match_flow { f matches ALLOW }
+}
+entry {
+ match_flow { f mismatches ALLOW }
+ action_flow { f[dip]= DROP; }
+}
+}

@@ -1,0 +1,29 @@
+
+program SSD{
+
+
+map<IP,int> list;
+map<IP,int> tlist;
+int threshold=100;
+
+entry{
+match_flow{f[flag_syn]==1 }
+match_state{tlist[f[sip]]!=1 && list[f[sip]]!= threshold}
+action_state{list[f[sip]]=list[f[sip]]+1;}
+}
+entry{
+match_flow{f[flag_syn]==1}
+match_state{~tlist[f[sip]]!=1 && list[f[sip]]== threshold}
+action_state{tlist[f[sip]]=1;}
+}
+entry{
+match_flow{f[flag_fin]==1}
+action_state{list[f[sip]]=list[f[sip]]-1;}
+}
+entry{
+match_flow{f[flag_syn]!=1 && f[flag_fin]==1}
+action_flow{pass;}
+action_state{pass;}
+}
+
+}
