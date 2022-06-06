@@ -86,15 +86,43 @@ public class Outputer {
 				dumpFromFile("template/slice5.txt");
 			} else {
 				if (GlobalVars.enableOpenNF) {
-					dumpFromFile("template/OpenNF/slice1.txt");
+					dumpFromFile("template/OpenNF/slice1-1.txt");
 				} else {
 					if (GlobalVars.useDPDK) {
-						dumpFromFile("template/dpdk/slice1.txt");
+						dumpFromFile("template/dpdk/slice1-1.txt");
 					}else {
-						dumpFromFile("template/pcap/slice1.txt");
+						if (GlobalVars.enableGPU) {
+							dumpFromFile("template/GPU/slice1-1.txt");
+						}else {
+							dumpFromFile("template/pcap/slice1-1.txt");
+						}
 					}
 				}
 			}
+			if (GlobalVars.flags.contains("encrypt")){
+				if (GlobalVars.enableGPU){
+					Outputer.fw.write("extern \"C\" int gpu_encrypt (char *akey, char *plain, unsigned long length,char* cipher);\n");
+				}else{
+					Outputer.fw.write("extern  \"C\" int cpu_encrypt(char* key, char *buf, unsigned long length,char *cipher);\n");
+				}
+				Outputer.fw.write("char *key = " +GlobalVars.values.get("key")+";\n");
+			}
+
+
+			if (GlobalVars.enableOpenNF) {
+				dumpFromFile("template/OpenNF/slice1-2.txt");
+			} else {
+				if (GlobalVars.useDPDK) {
+					dumpFromFile("template/dpdk/slice1-2.txt");
+				}else {
+					if (GlobalVars.enableGPU) {
+						dumpFromFile("template/GPU/slice1-2.txt");
+					}else {
+						dumpFromFile("template/pcap/slice1-2.txt");
+					}
+				}
+			}
+
 			/* main section */
 			Outputer.fw.write(s0.toString());
 			Outputer.fw.write(s1.toString());

@@ -90,8 +90,9 @@ public class TypeVisitor extends NFCompilerBaseVisitor<String> {
 				||ctx.getText().equals("dip")
 			) {
 			return "IP";
-		}
-		else {
+		} else if (ctx.getText().equals("payload")) {
+			return "char";
+		} else {
 			return "int";
 		}
 	}
