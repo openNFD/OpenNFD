@@ -20,12 +20,11 @@ public class Interpreter {
 		
 		CharStream input;
 		try {
-			Outputer opt = new Outputer("NF/NF.c");
-			
 			File f = new File("NF/");
 			if(!f.exists()) {
 				f.mkdirs();
 			}
+			Outputer opt = new Outputer("NF/NF.cpp");
 			boolean flag= false;
 			String finput = new String();
 			for (String item: f.list()) {

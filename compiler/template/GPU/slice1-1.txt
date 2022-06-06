@@ -1,0 +1,26 @@
+#include <stdio.h>
+#include <pcap.h>
+#include <time.h>
+#include "basic_classes.h"
+#include <cstdio>
+#include <iostream>
+#include <iomanip>
+#include <vector>
+#include <unordered_map>
+#include <unordered_set>
+#include <unistd.h>
+#include <pthread.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <cstring>
+#include <signal.h>
+#include <sys/time.h>
+
+#define RECEIVE_NUM 100000
+#define MAX_PACKET_LEN 65535
+#define NUMOFSTREAM 1
+#ifdef u_char
+#define u_char unsigned char
+#endif
+
+

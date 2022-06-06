@@ -21,6 +21,8 @@ public class Template {
 	private File f5;
 	private File f6;
 	private File f7;
+	private File f8;
+	private File f9;
 
 	public Template() throws IOException {
 
@@ -34,15 +36,19 @@ public class Template {
 		}else {
 			f5 = new File("template/pcap/makefile");
 		}
-		
+		if (GlobalVars.enableGPU){
+			f5 = new File("template/GPU/makefile");
+		}
 		
 		f6 = new File("template/TCPClient.cpp");
 		f7 = new File("template/TCPClient.h");
+
 		copyFile(f1, folder);
 		copyFile(f2, folder);
 		copyFile(f3, folder);
 		copyFile(f4, folder);
 		copyFile(f5, folder);
+
 		if (GlobalVars.isTCP) {
 			copyFile(f6, folder);
 			copyFile(f7, folder);
@@ -62,6 +68,17 @@ public class Template {
 		fw1 = new FileWriter(new File("NF/basic_classes.cpp"), true);
 	}
 
+	public void AppendTemplate() throws IOException{
+		if (GlobalVars.flags.contains("encrypt")) {
+			if (GlobalVars.enableGPU) {
+				f8 = new File("template/GPU/aes_gpu.cu");
+			} else {
+				f8 = new File("template/GPU/aes_nogpu.cpp");
+			}
+			copyFile(f8, folder);
+		}
+	}
+
 	public void CloseAll() throws IOException {
 		fw1.flush();
 		fw1.close();
@@ -78,7 +95,7 @@ public class Template {
 		}
 		if (read.contains("sip") || read.contains("dip") || read.contains("UDP") || read.contains("sport")
 				|| read.contains("sport") || read.contains("flag_fin") || read.contains("flag_syn")
-				|| read.contains("flag_ack")) {
+				|| read.contains("flag_ack") ||read.contains("payload")) {
 			fw1.write("    this->pkt = packet;\n" + "    int ethernet_header_length = 14;\n" + "\n"
 					+ "    EtherHdr* e_hdr = (EtherHdr*) packet;\n" + "    if ( ntohs(e_hdr->ether_type) == 0x8100)	\n"
 					+ "	    ethernet_header_length = 14+4; \n" + "    else\n" + "        ethernet_header_length = 14;\n");
@@ -102,7 +119,7 @@ public class Template {
 				}
 			}
 			if (read.contains("sport") || read.contains("sport") || read.contains("flag_fin")
-					|| read.contains("flag_syn") || read.contains("flag_ack")) {
+					|| read.contains("flag_syn") || read.contains("flag_ack") || read.contains("payload")) {
 				fw1.write("    int ip_header_length = int(ip_hdr->ip_hlen) * 4;\n"
 						+ "    TCPHdr *tcph =(TCPHdr *)(packet+ethernet_header_length+ip_header_length);\n");
 				if (read.contains("sport"))
@@ -115,6 +132,10 @@ public class Template {
 					fw1.write("    this->headers[FLAG_SYN] = new int(ntohs(tcph->th_flags) & TH_SYN);\n");
 				if (read.contains("flag_ack"))
 					fw1.write("    this->headers[FLAG_ACK] = new int(ntohs(tcph->th_flags) & TH_ACK);\n");
+				if (read.contains("payload"))
+					fw1.write("    this->field_value[\"payload_length\"] = new int(totallength - ethernet_header_length - ip_header_length);\n" +
+							"    u_char * payload = packet + ethernet_header_length + ip_header_length;\n" +
+							"    this->field_value[\"payload\"] = payload;");
 			}
 		}
 		fw1.write("}\n");
@@ -129,7 +150,7 @@ public class Template {
 					"	    ethernet_header_length = 14+4; \n" + 
 					"    else\n" + 
 					"        ethernet_header_length = 14;\n");
-			if (write.contains("sip") || write.contains("dip") || write.contains("sport") || write.contains("dport")) {
+			if (write.contains("sip") || write.contains("dip") || write.contains("sport") || write.contains("dport") || write.contains("payload")) {
 				fw1.write("    IPHdr * ip_hdr = (IPHdr*) (packet+ethernet_header_length);\n");
 				if (write.contains("sip")) {
 					fw1.write("    ip_hdr->ip_src.s_addr = htonl( ((IP *)this->headers[SIP])->ip );\n");
@@ -137,7 +158,7 @@ public class Template {
 				if (write.contains("dip")) {
 					fw1.write("    ip_hdr->ip_dst.s_addr = htonl( ((IP *)this->headers[DIP])->ip );\n");
 				}
-				if (write.contains("sport") || write.contains("dport")) {
+				if (write.contains("sport") || write.contains("dport") || write.contains("payload")) {
 					fw1.write("    int ip_header_length = int(ip_hdr->ip_hlen) * 4;\n" + 
 							"	TCPHdr *tcph =(TCPHdr *)(packet+ethernet_header_length+ip_header_length);\n");
 					if (write.contains("sport")) {
@@ -145,6 +166,9 @@ public class Template {
 					}
 					if (write.contains("dport")) {
 						fw1.write("    tcph->th_dport =htons(u_short(*((int*)this->headers[DPORT])));\n");
+					}
+					if (write.contains("payload")){
+						fw1.write("    memcpy(this->pkt + ethernet_header_length + ip_header_length, (char *)this->field_value[\"payload\"], strlen((char*)this->field_value[\"payload\"]));");
 					}
 				}
 			}

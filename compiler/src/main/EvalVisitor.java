@@ -95,6 +95,7 @@ public class EvalVisitor extends NFCompilerBaseVisitor<String> {
 		try {
 			tp = new Template();
 			tp.DumpTemplate(write, read);
+			tp.AppendTemplate();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -263,6 +264,20 @@ public class EvalVisitor extends NFCompilerBaseVisitor<String> {
 			sb.append("send(" + visit(ctx.expression_list().expression(0)) + "[i], buffer, len, 0);");
 		} else if (ctx.funcs().RECV() != null) {
 			sb.append("						recv(i, buffer, sizeof(buffer), 0);\n");
+		} else if (ctx.funcs().ENCRYPT() != null){
+			GlobalVars.flags.add("encrypt");
+			GlobalVars.values.put("key", ctx.expression_list().expression(2).getText());
+			String encrypted = visit(ctx.expression_list().expression(0));
+			encrypted = encrypted.substring(2, encrypted.length()-1);
+			String enc_len = visit(ctx.expression_list().expression(1));
+			String to_write = visit(ctx.expression_list().expression(0));
+			to_write = to_write.substring(2, to_write.length()-1);
+			write.add(to_write.substring(to_write.indexOf('[')+1, to_write.indexOf(']')).toLowerCase());
+			if (GlobalVars.enableGPU) {
+				sb.append(String.format("gpu_encrypt(key, %s, %s + 34, %s);", encrypted, enc_len , to_write));
+			} else{
+				sb.append(String.format("cpu_encrypt(key, %s, %s + 34, %s);", encrypted, enc_len , to_write));
+			}
 		}
 		return sb.toString();
 	}

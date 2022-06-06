@@ -111,3 +111,30 @@ int Flow::matches(const string &field, const void * p) {
     }
     return 1;
 }
+Flow::Flow(u_char * packet, int totallength)  {
+    this->pkt = packet;
+    int ethernet_header_length = 14;
+
+    EtherHdr* e_hdr = (EtherHdr*) packet;
+    if ( ntohs(e_hdr->ether_type) == 0x8100)	
+	    ethernet_header_length = 14+4; 
+    else
+        ethernet_header_length = 14;
+    IPHdr * ip_hdr = (IPHdr*) (packet+ethernet_header_length);
+    int ip_header_length = int(ip_hdr->ip_hlen) * 4;
+    TCPHdr *tcph =(TCPHdr *)(packet+ethernet_header_length+ip_header_length);
+    this->field_value["payload_length"] = new int(totallength - ethernet_header_length - ip_header_length);
+    u_char * payload = packet + ethernet_header_length + ip_header_length;
+    this->field_value["payload"] = payload;}
+void Flow::clean() {	
+    u_char * packet = this->pkt;
+    int ethernet_header_length = 14; 
+    EtherHdr* e_hdr = (EtherHdr*) this->pkt;
+    if ( ntohs(e_hdr->ether_type) == 0x8100)	
+	    ethernet_header_length = 14+4; 
+    else
+        ethernet_header_length = 14;
+    IPHdr * ip_hdr = (IPHdr*) (packet+ethernet_header_length);
+    int ip_header_length = int(ip_hdr->ip_hlen) * 4;
+	TCPHdr *tcph =(TCPHdr *)(packet+ethernet_header_length+ip_header_length);
+    memcpy(this->pkt + ethernet_header_length + ip_header_length, (char *)this->field_value["payload"], strlen((char*)this->field_value["payload"]));}

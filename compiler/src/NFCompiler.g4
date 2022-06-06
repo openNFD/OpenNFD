@@ -122,7 +122,7 @@ function_call  :
 ;
 
 funcs  :
-	TIMER | RESUBMIT | ACCEPT | SEND_TO | SEND_BACK | CONNECT | MAX | RECV
+	TIMER | RESUBMIT | ACCEPT | SEND_TO | SEND_BACK | CONNECT | MAX | RECV | ENCRYPT
 ;
 
 expression_list  :
@@ -132,6 +132,7 @@ expression_list  :
 constant  :
 	IP  #const_ip
 	| INT  #const_int
+	| STR #const_str
 ;
 
 flow_or_rule_entry  :
@@ -163,7 +164,7 @@ FLOW : 'flow' ;
 RULE : 'rule' ;
 
 FIELD : 'sip' | 'dip' | 'UDP'
-	| 'sport' | 'dport' | 'payload' | 'flag_syn' | 'flag_fin' | 'flag_ack' 
+	| 'sport' | 'dport' | 'payload' | 'payload_length' | 'flag_syn' | 'flag_fin' | 'flag_ack'
 	| 'tag' | 'iplen' ;
 ACTION: 'DROP' ;
 ENTRY : 'entry' ;
@@ -176,6 +177,7 @@ SEND_BACK : 'send_back';
 CONNECT : 'connect';
 MAX : 'max' ;
 RECV  : 'recv' ;
+ENCRYPT : 'encrypt';
 
 ADD   : '+' ;
 SUB   : '-' ;
@@ -232,6 +234,9 @@ IDENT  :
 	[a-zA-Z] [a-zA-Z0-9_]*
 ;
 
+STR  :
+    '"' .* '"'
+;
 BLOCK_COMMENT
 	: '/*' .*? '*/' -> channel(HIDDEN)
 	;

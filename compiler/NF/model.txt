@@ -1,0 +1,5 @@
+program Encryptor{
+entry {
+action_flow { encrypt(f[payload], f[payload_length], "bd5767b5c272dd72bd72123123121231"); }
+}
+}
